@@ -1,4 +1,5 @@
 # Environment escape design
+
 ## Motivation
 
 To best control dependencies for a Metaflow run, Metaflow provides Conda which
@@ -34,6 +35,7 @@ plugin and is executed by the *server* interpreter.
 
 To illustrate this high level-design, let us walk through an example. Suppose
 the user code is as follows:
+
 ```
 import data_accessor as da
 
@@ -71,6 +73,7 @@ between stub objects on the client and backing objects on the server**.
 The next method called on ```job``` is ```wait``` which returns ```None```. In
 this system, by design, only certain objects may be transferred between
 the client and the server:
+
 - any Python basic type; this can be extended to any object that can be pickled
   without any external library;
 - any reference to a server object provided that object is exportable (more on
@@ -90,8 +93,10 @@ the attributes of the original exception (either the attribute itself if it can
 be transferred or a string representation of it).
 
 ### Key Concepts
+
 There are a few key decisions in the implementation that stem from the principle
 of "let there be no surprises":
+
 - The environment escape plugin is *whitelist* based. By default, the server
   cannot transfer *any* objects back to the client (this is rather useless).
   Classes need to be explicitly whitelisted when defining a module to be used
@@ -120,14 +125,16 @@ of "let there be no surprises":
 A big part of the design was inspired by an OpenSource project called RPyC
 although the implementation was totally re-written and simplified due to the
 restrictions/constraints we imposed. Information about this project can be found
-here: https://rpyc.readthedocs.io/en/latest/.
+here: <https://rpyc.readthedocs.io/en/latest/>.
 
 ## Implementation details
 
 ### Communication
+
 Communication is quite simple in this implementation and relies on UNIX Sockets
 (defined in ```communication/socket_bytestream.py```). The methods exposed by
 this level are very simple:
+
 - read a fixed number of bytes (this imposes length-encoded messages but makes
   communication that much simpler)
 - send data in a buffer; all data is sent (although this may be over several
@@ -159,6 +166,7 @@ looks like on the client side.
 Each class on the server side will get a corresponding stub class (so not all
 stubs are the same class, they just look very similar). This is handled in
 ```create_class``` which does the following:
+
 - it gathers all the methods from the class (this is obtained from the server --
   see Section on the Client) and creates local methods for the stub class that
   it is building. It distinguishes regular methods, static methods and class
@@ -179,6 +187,7 @@ object.
 
 Stub objects really do not have much locally; they forward pretty much
 everything to the server:
+
 - Attributes are all forwarded to the server (minus very few) via
   ```__getattribute__``` and ```__getattr__```.
   - Methods are inserted using the previously described mechanism.
@@ -197,24 +206,25 @@ everything to the server:
 #### Method invocation on a stub object
 
   When invoking a method on a stub object, the following happens:
-  - if a local override is defined, the local override is called and is passed:
-  - the stub on which the method is called
-  - a function object to call to forward the method to the server. This function
+
+- if a local override is defined, the local override is called and is passed:
+- the stub on which the method is called
+- a function object to call to forward the method to the server. This function
     object requires the arguments to be passed to it (so you can modify them)
     but nothing else. It is a standalone function object and does not need to be
     called as a method of the stub.
-  - the initial arguments and keyword arguments passed to the call
-  - if a local override is not defined, the call is forwarded to the server
+- the initial arguments and keyword arguments passed to the call
+- if a local override is not defined, the call is forwarded to the server
     using the arguments and keyword arguments passed in.
-  - on the server side, if a remote override is defined, the remote override is
+- on the server side, if a remote override is defined, the remote override is
     called and is passed:
-  - the object on which the method is being called
-  - a function object to call to forward the method to the object. This function
+- the object on which the method is being called
+- a function object to call to forward the method to the object. This function
     object requires the arguments to be passed to it (so you can modify them)
     but nothing else. It is a standalone function object and already bound to
     the object.
-  - the arguments and keyword arguments received from the client
-  - if a remote override is not defined, the method is called directly on the
+- the arguments and keyword arguments received from the client
+- if a remote override is not defined, the method is called directly on the
     object.
 
 ### Client/Server
@@ -225,25 +235,26 @@ everything to the server:
   to do so.
 
   The server is thus started by the client, and the client is responsible for
-  terminating the server when it dies. A big part of the client and server code 
+  terminating the server when it dies. A big part of the client and server code
   consist in loading the configuration for the emulated module, particularly the
   overrides.
 
   The steps to bringing up the client/server connection are as follows:
-  - [Client] Determines a path to the UNIX socket to use (a combination of PID
+
+- [Client] Determines a path to the UNIX socket to use (a combination of PID
     and emulated module)
-  - [Client] Start the server
-  - [Client] Read the local overrides
-  - [Client] Wait for the socket to be up and connect to it
-  - [Client] Query the server asking for all the objects that will be proxied.
+- [Client] Start the server
+- [Client] Read the local overrides
+- [Client] Wait for the socket to be up and connect to it
+- [Client] Query the server asking for all the objects that will be proxied.
     Only the server knows because the file defining the whitelisted objects
     includes the library that the client cannot load.
-  - [Server] Read the server overrides as well as the whitelisted information.
+- [Server] Read the server overrides as well as the whitelisted information.
     This process is somewhat involved due to the way we handle exceptions
     (allowing for hierarchy information in exceptions).
-  - [Server] Setting up handlers
-  - [Server] Opening the UNIX socket and waiting for a connection
-  - [Server] Once a connection is established, waiting for request. The server
+- [Server] Setting up handlers
+- [Server] Opening the UNIX socket and waiting for a connection
+- [Server] Once a connection is established, waiting for request. The server
     is single threaded by design (it is an extension of the client which is
     single threaded).
 
@@ -282,6 +293,7 @@ emulated within a single server environment.
 
 Inside this directory, apart from the usual ```__init__.py```, you need to
 create two files:
+
 - ```server_mappings.py``` which must contain the following five fields:
   - ```EXPORTED_CLASSES```: This is a dictionary of dictionary describing the
     whitelisted classes. The outermost key is either a string or a tuple of
